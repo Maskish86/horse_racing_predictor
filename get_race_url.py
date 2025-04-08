@@ -1,0 +1,104 @@
+import datetime
+import pytz
+import re
+import os
+
+from selenium import webdriver
+from selenium.webdriver.support.ui import Select, WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.options import Options
+
+now_datetime = datetime.datetime.now(pytz.timezone('Asia/Tokyo'))
+RACE_URL_DIR = 'race_url'
+URL = 'https://db.netkeiba.com/?pid=race_search_detail'
+WAIT_SECOND = 5
+
+
+def get_race_url():
+    options = Options()
+    options.add_argument('--headless')
+    driver = webdriver.Chrome(options=options)
+    driver.implicitly_wait(10)
+
+    def generate_year_month_ranges():
+        last_year_data = [(year, month) for year in range(1990, now_datetime.year)
+                          for month in range(1, 13)]
+        this_year_data = [(year, month) for year in range(now_datetime.year, now_datetime.year+1)
+                          for month in range(1, now_datetime.month)]
+        return last_year_data + this_year_data
+
+    for year, month in generate_year_month_ranges():
+        race_url_file = os.path.join(RACE_URL_DIR, f'{year}-{month}.txt')
+        if not os.path.isfile(race_url_file):
+            print(f'getting urls ({year} {month})')
+            get_race_url_by_year_and_mon(driver, year, month)
+
+    print(f'getting urls ({str(now_datetime.year)} {str(now_datetime.month)})')
+    get_race_url_by_year_and_mon(driver, now_datetime.year, now_datetime.month)
+
+    driver.close()
+    driver.quit()
+
+
+def get_race_url_by_year_and_mon(driver, year, month):
+    race_url_file = os.path.join(RACE_URL_DIR, f'{year}-{month}.txt')
+
+    wait = WebDriverWait(driver, 10)
+    driver.get(URL)
+    wait.until(EC.presence_of_element_located((By.NAME, 'start_year')))
+
+    # 期間を選択
+    start_year_select = Select(driver.find_element(By.NAME, 'start_year'))
+    start_year_select.select_by_value(str(year))
+    start_mon_select = Select(driver.find_element(By.NAME, 'start_mon'))
+    start_mon_select.select_by_value(str(month))
+    end_year_select = Select(driver.find_element(By.NAME, 'end_year'))
+    end_year_select.select_by_value(str(year))
+    end_mon_select = Select(driver.find_element(By.NAME, 'end_mon'))
+    end_mon_select.select_by_value(str(month))
+
+    for i in range(1, 11):
+        terms = driver.find_element(By.ID, f'check_Jyo_{str(i).zfill(2)}')
+        terms.click()
+
+    list_select = Select(driver.find_element(By.NAME, 'list'))
+    list_select.select_by_value('100')
+
+    frm = driver.find_element(By.CSS_SELECTOR, '#db_search_detail_form > form')
+    frm.submit()
+    wait.until(EC.presence_of_element_located((By.CLASS_NAME, 'race_table_01')))
+
+    total_num_and_now_num = driver.find_element(By.XPATH, "//*[@id='contents_liquid']/div[1]/div[2]").text
+    total_num = int(re.search(r'(.*)件中', total_num_and_now_num).group().strip('件中'))
+
+    pre_url_num = 0
+    if os.path.isfile(race_url_file):
+        with open(race_url_file, mode='r') as f:
+            pre_url_num = len(f.readlines())
+
+    if total_num != pre_url_num:
+        with open(race_url_file, mode='w') as f:
+            total = 0
+            while True:
+                wait.until(EC.presence_of_element_located((By.CLASS_NAME, 'race_table_01')))
+                all_rows = driver.find_element(By.CLASS_NAME, 'race_table_01').find_elements(By.TAG_NAME, 'tr')
+                total += len(all_rows) - 1
+                total += len(all_rows)-1
+                for row in range(1, len(all_rows)):
+                    race_href = all_rows[row].find_elements(By.TAG_NAME, 'td')[4]\
+                        .find_element(By.TAG_NAME, 'a').get_attribute('href')
+                    f.write(race_href+'\n')
+                try:
+                    target = driver.find_elements(By.LINK_TEXT, '次')[0]
+                    driver.execute_script('arguments[0].click();', target)  # javascriptでクリック処理
+                except IndexError:
+                    break
+        print(f'got {total} urls of {total_num} ({year} {month})')
+    else:
+        print(f'already have {pre_url_num} urls ({year} {month})')
+
+
+if __name__ == '__main__':
+    print('start get race url!')
+    get_race_url()
