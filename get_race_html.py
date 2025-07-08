@@ -1,4 +1,5 @@
 import datetime
+from dotenv import load_dotenv
 import pytz
 import requests
 import os
@@ -7,9 +8,13 @@ now_datetime = datetime.datetime.now(pytz.timezone('Asia/Tokyo'))
 RACE_URL_DIR = 'race_url'
 RACE_HTML_DIR = 'race_html'
 
-ID = ''  # your id on netkeiba 
-PASSWORD = ''  # your password on netkeiba
 
+load_dotenv()
+
+ID = os.getenv("NETKEIBA_ID")
+PASSWORD = os.getenv("NETKEIBA_PASSWORD")
+
+print("ID:", ID)
 def my_makedirs(dir_path):
     if not os.path.isdir(dir_path):
         os.makedirs(dir_path)
