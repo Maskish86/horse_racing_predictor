@@ -1,0 +1,29 @@
+# Ignore virtual environments
+venv/
+env/
+.venv/
+ENV/
+
+# Ignore Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Ignore dotenv files (secrets)
+.env
+
+# Ignore logs
+*.log
+
+# Ignore Jupyter Notebook checkpoints
+.ipynb_checkpoints
+
+# Ignore compiled C files
+*.so
+
+# Ignore MacOS / Windows system files
+.DS_Store
+Thumbs.db
+
+# Ignore PyCharm settings
+.idea/
