@@ -5,12 +5,14 @@ import pandas as pd
 import os
 from os import path
 
+# 現在日時（タイムゾーン: 日本）
 now_datetime = datetime.datetime.now(pytz.timezone('Asia/Tokyo'))
-RACE_URL_DIR = 'race_url'
-RACE_HTML_DIR = 'race_html'
-CSV_DIR = 'yearly_csv'
 
+RACE_URL_DIR = 'race_url'     # レースURLを保存するディレクトリ
+RACE_HTML_DIR = 'race_html'   # レースHTMLを保存するディレクトリ
+CSV_DIR = 'yearly_csv'        # 出力CSVの保存先ディレクトリ
 
+# レースデータのcolumns
 race_data_columns = [
     'race_id',
     'race_round',
@@ -40,12 +42,13 @@ race_data_columns = [
     'quinella_place_2_3',
     'exacta',
     'trio',
-    'trifecta'
+    'trifecta',
     'ground_index',
     'lap_time',
     'pace_time'
-    ]
+]
 
+# 競走馬データのcolumns
 horse_data_columns = [
     'race_id',
     'rank',
@@ -57,37 +60,43 @@ horse_data_columns = [
     'rider_id',
     'goal_time',
     'margin',
-    'speed_index'
+    'speed_index',
     'rank_path',
     'time_for_3_furlongs',
     'win_odds',
     'popular',
     'horse_weight',
     'remark',
-    'affiliation'
+    'affiliation',
     'tamer_id',
     'owner_id'
 ]
 
 
+# 複数年分まとめて処理する関数
 def make_csv_from_html(start_year=2000):
-    for year in range(start_year, now_datetime.year+1):
+    for year in range(start_year, now_datetime.year + 1):
         make_csv_from_html_by_year(year)
 
+
+# 1年分のHTMLを処理してCSVを生成する関数
 def make_csv_from_html_by_year(year):
     save_race_csv = os.path.join(CSV_DIR, f'race_{year}.csv')
     horse_race_csv = os.path.join(CSV_DIR, f'horse_{year}.csv')
+    # 既にCSVがある場合はスキップ
     if not ((os.path.isfile(save_race_csv)) and (os.path.isfile(horse_race_csv))):
         race_data_dicts = []
         horse_data_dicts = []
-        print(f'saving csv ({year})')
+        print(f'CSV作成中 ({year})')
         total = 0
+        # 各月のHTMLを読み込む
         for month in range(1, 13):
             html_dir = os.path.join(RACE_HTML_DIR, str(year), str(month))
             if os.path.isdir(html_dir):
                 file_list = os.listdir(html_dir)
                 total += len(file_list)
-                print(f'Appending {len(file_list)} data to csv ({year} {month})')
+                print(f'{len(file_list)} 件を追加 ({year}年{month}月)')
+                # 各HTMLを処理
                 for file_name in file_list:
                     with open(os.path.join(html_dir, file_name), 'r', encoding='euc-jp', errors='replace') as f:
                         html = f.read()
@@ -95,32 +104,35 @@ def make_csv_from_html_by_year(year):
                         race_dict, horse_dicts = get_race_and_horse_data_by_html(race_id, html)
                         race_data_dicts.append(race_dict)
                         horse_data_dicts.extend(horse_dicts)
-
+        # DataFrameに変換
         race_df = pd.DataFrame(race_data_dicts)
         horse_df = pd.DataFrame(horse_data_dicts)
+
+        # データ中に\xa0（ノーブレークスペース）が残っていないか確認
         for col in race_df.columns:
             matches = race_df[race_df[col].astype(str).str.contains('\xa0', na=False)]
             if not matches.empty:
                 print(f'Column: {col}')
                 print(matches[[col]])
+
+        # CSVを保存
         race_df.to_csv(save_race_csv, encoding='euc-jp', index=False)
         horse_df.to_csv(horse_race_csv, encoding='euc-jp', index=False)
-        print(f'(rows, columns) of race_df:\t{race_df.shape}')
-        print(f'(rows, columns) of horse_df:\t{horse_df.shape}')
-        print(f'saved {total} htmls to csv ({year})')
+        print(f'レースデータ (行, 列):\t{race_df.shape}')
+        print(f'競走馬データ (行, 列):\t{horse_df.shape}')
+        print(f'合計 {total} 件のHTMLをCSV化しました ({year})')
     else:
-        print(f'already have csv ({year})')
+        print(f'既にCSVがあります ({year})')
 
 
+# HTMLからレース情報と競走馬情報を抽出する関数
 def get_race_and_horse_data_by_html(race_id, html):
     soup = BeautifulSoup(html, 'html.parser')
 
-    race_data = {
-        'race_id': race_id
-    }
+    race_data = {'race_id': race_id}
     horse_data = []
 
-    # レースごとのデータ
+    # レース概要
     data_intro = soup.find('div', class_='data_intro')
     race_data['race_round'] = data_intro.find('dt').get_text().strip()
     race_data['race_grade'] = data_intro.find('h1').get_text().strip()
@@ -138,25 +150,23 @@ def get_race_and_horse_data_by_html(race_id, html):
     result_rows = soup.find('table', class_='race_table_01 nk_tb_common').find_all('tr')
     race_data['total_horse_number'] = len(result_rows) - 1
 
+    # 1〜3着の馬番号・枠番号
     for i in range(1, 4):
         row = result_rows[i].find_all('td')
-        race_data[f'frame_number_{'first' if i==1 else 'second' if i==2 else 'third'}'] = row[1].get_text()
-        race_data[f'horse_number_{'first' if i==1 else 'second' if i==2 else 'third'}'] = row[2].get_text()
+        race_data[f'frame_number_{"first" if i==1 else "second" if i==2 else "third"}'] = row[1].get_text()
+        race_data[f'horse_number_{"first" if i==1 else "second" if i==2 else "third"}'] = row[2].get_text()
 
+    # 払戻金
     pay_back_tables = soup.find_all('table', class_='pay_table_01')
     pay_back1 = pay_back_tables[0].find_all('tr')
-
     race_data['win'] = pay_back1[0].find('td', class_='txt_r').get_text()
-
     show = [s for s in pay_back1[1].find('td', class_='txt_r').strings]
     for i in range(3):
         race_data[f'show_{i+1}'] = show[i] if i < len(show) else '0'
-
     try:
         race_data['bracket_quinella'] = pay_back1[2].find('td', class_='txt_r').get_text()
     except:
         race_data['bracket_quinella'] = '0'
-
     try:
         race_data['quinella'] = pay_back1[3].find('td', class_='txt_r').get_text()
     except:
@@ -165,15 +175,13 @@ def get_race_and_horse_data_by_html(race_id, html):
     pay_back2 = pay_back_tables[1].find_all('tr')
     try:
         quinella = [s for s in pay_back2[0].find('td', class_='txt_r').strings]
-        race_data[f'quinella_place_{1}_{2}'] = quinella[0]
-        race_data[f'quinella_place_{1}_{3}'] = quinella[1]
-        race_data[f'quinella_place_{2}_{3}'] = quinella[2]
-
+        race_data['quinella_place_1_2'] = quinella[0]
+        race_data['quinella_place_1_3'] = quinella[1]
+        race_data['quinella_place_2_3'] = quinella[2]
     except:
-        race_data[f'quinella_place_{1}_{2}'] = 0
-        race_data[f'quinella_place_{1}_{3}'] = 0
-        race_data[f'quinella_place_{2}_{3}'] = 0
-
+        race_data['quinella_place_1_2'] = '0'
+        race_data['quinella_place_1_3'] = '0'
+        race_data['quinella_place_2_3'] = '0'
     try:
         race_data['exacta'] = pay_back2[1].find('td', class_='txt_r').get_text()
     except:
@@ -187,21 +195,19 @@ def get_race_and_horse_data_by_html(race_id, html):
     except:
         race_data['trifecta'] = '0'
 
+    # 馬場指数・ラップタイム
     condition_td_element = soup.find_all('table', class_='result_table_02')[0].find_all('tr')[0].find('td')
-    if condition_td_element:
-        race_data['ground_index'] = condition_td_element.get_text(strip=True).split('(')[0].replace('\xa0', '')
-    else:
-        race_data['ground_index'] = 0
+    race_data['ground_index'] = condition_td_element.get_text(strip=True).split('(')[0].replace('\xa0', '') if condition_td_element else '0'
 
     lap_tr_element = soup.find_all('table', class_='result_table_02')[2].find_all('tr')
     if lap_tr_element:
         race_data['lap_time'] = lap_tr_element[0].find('td').get_text(strip=True)
-        race_data['pace_time'] =  lap_tr_element[1].find('td').get_text(strip=True).replace('\xa0', '')
+        race_data['pace_time'] = lap_tr_element[1].find('td').get_text(strip=True).replace('\xa0', '')
     else:
-        race_data['lap_time'] = 0
-        race_data['pace_time'] = 0
+        race_data['lap_time'] = '0'
+        race_data['pace_time'] = '0'
 
-    # 競走馬ごとのデータ
+    # 各競走馬データ
     for rank in range(1, len(result_rows)):
         result_row = result_rows[rank].find_all('td')
         horse = {
@@ -231,6 +237,7 @@ def get_race_and_horse_data_by_html(race_id, html):
     return race_data, horse_data
 
 
+# メイン処理
 if __name__ == '__main__':
-    print('Start making csv!')
+    print('CSV作成を開始します')
     make_csv_from_html()
