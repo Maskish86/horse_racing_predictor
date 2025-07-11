@@ -8,7 +8,7 @@ from os import path
 now_datetime = datetime.datetime.now(pytz.timezone('Asia/Tokyo'))
 RACE_URL_DIR = 'race_url'
 RACE_HTML_DIR = 'race_html'
-CSV_DIR = 'csv'
+CSV_DIR = 'yearly_csv'
 
 
 race_data_columns = [
@@ -70,8 +70,8 @@ horse_data_columns = [
 ]
 
 
-def make_csv_from_html():
-    for year in range(2006, now_datetime.year+1):
+def make_csv_from_html(start_year=2000):
+    for year in range(start_year, now_datetime.year+1):
         make_csv_from_html_by_year(year)
 
 def make_csv_from_html_by_year(year):

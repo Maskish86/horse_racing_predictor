@@ -15,27 +15,51 @@ URL = 'https://db.netkeiba.com/?pid=race_search_detail'
 WAIT_SECOND = 5
 
 
-def get_race_url():
+def get_race_url(start_year=2000, start_month=1):
     options = Options()
     options.add_argument('--headless')
     driver = webdriver.Chrome(options=options)
     driver.implicitly_wait(10)
 
     def generate_year_month_ranges():
-        last_year_data = [(year, month) for year in range(1990, now_datetime.year)
-                          for month in range(1, 13)]
-        this_year_data = [(year, month) for year in range(now_datetime.year, now_datetime.year+1)
-                          for month in range(1, now_datetime.month)]
-        return last_year_data + this_year_data
+        ranges = []
+
+        # 今月の最初の日
+        first_day_of_month = now_datetime.replace(day=1)
+        today = now_datetime
+
+        # 今月に日曜があったか確認
+        sunday_occurred = False
+        for i in range(0, today.day):
+            day = first_day_of_month + datetime.timedelta(days=i)
+            if day.weekday() == 6:
+                sunday_occurred = True
+                break
+
+        if start_year < now_datetime.year:
+            # 過去の年
+            for year in range(start_year, now_datetime.year):
+                for month in range(1, 13):
+                    if year == start_year and month < start_month:
+                        continue
+                    ranges.append((year, month))
+            # 今年
+            end_month = now_datetime.month if not sunday_occurred else now_datetime.month + 1
+            for month in range(1, end_month):
+                ranges.append((now_datetime.year, month))
+        elif start_year == now_datetime.year:
+            end_month = now_datetime.month if not sunday_occurred else now_datetime.month + 1
+            for month in range(start_month, end_month):
+                ranges.append((now_datetime.year, month))
+        else:
+            raise ValueError("start_year cannot be in the future.")
+
+        return ranges
 
     for year, month in generate_year_month_ranges():
-        race_url_file = os.path.join(RACE_URL_DIR, f'{year}-{month}.txt')
-        if not os.path.isfile(race_url_file):
-            print(f'getting urls ({year} {month})')
-            get_race_url_by_year_and_mon(driver, year, month)
+        print(f'getting urls ({year} {month})')
+        get_race_url_by_year_and_mon(driver, year, month)
 
-    print(f'getting urls ({str(now_datetime.year)} {str(now_datetime.month)})')
-    get_race_url_by_year_and_mon(driver, now_datetime.year, now_datetime.month)
 
     driver.close()
     driver.quit()
@@ -60,7 +84,7 @@ def get_race_url_by_year_and_mon(driver, year, month):
 
     for i in range(1, 11):
         terms = driver.find_element(By.ID, f'check_Jyo_{str(i).zfill(2)}')
-        terms.click()
+        driver.execute_script("arguments[0].click();", terms)
 
     list_select = Select(driver.find_element(By.NAME, 'list'))
     list_select.select_by_value('100')
@@ -101,4 +125,4 @@ def get_race_url_by_year_and_mon(driver, year, month):
 
 if __name__ == '__main__':
     print('start get race url!')
-    get_race_url()
+    get_race_url(start_year=2025, start_month=1)
