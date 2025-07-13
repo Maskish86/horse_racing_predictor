@@ -1,4 +1,6 @@
 # Core libraries
+flask
+jupyterlab
 numpy
 pandas
 scikit-learn
@@ -6,6 +8,9 @@ matplotlib
 
 # Deep Learning
 torch
+
+# Hyperparameter Optimization
+optuna
 
 # Web scraping
 selenium
