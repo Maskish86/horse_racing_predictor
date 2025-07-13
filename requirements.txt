@@ -1,7 +1,19 @@
+# Core libraries
 numpy
-selenium
-pytz
-python-dotenv
-requests
-beautifulsoup4
 pandas
+scikit-learn
+matplotlib
+
+# Deep Learning
+torch
+
+# Web scraping
+selenium
+beautifulsoup4
+requests
+
+# Timezones
+pytz
+
+# Environment variable support
+python-dotenv
