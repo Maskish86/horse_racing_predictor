@@ -1,3 +1,4 @@
+from pathlib import Path
 import datetime
 import pytz
 import re
@@ -10,7 +11,8 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
 
 now_datetime = datetime.datetime.now(pytz.timezone('Asia/Tokyo'))
-RACE_URL_DIR = 'race_url'
+RACE_URL_DIR = Path("data/race_url")
+RACE_URL_DIR.mkdir(parents=True, exist_ok=True) 
 URL = 'https://db.netkeiba.com/?pid=race_search_detail'
 WAIT_SECOND = 5
 
@@ -66,7 +68,7 @@ def get_race_url(start_year=2000, start_month=1):
 
 
 def get_race_url_by_year_and_mon(driver, year, month):
-    race_url_file = os.path.join(RACE_URL_DIR, f'{year}-{month}.txt')
+    race_url_file =  RACE_URL_DIR / f"{year}-{month}.txt"
 
     wait = WebDriverWait(driver, 10)
     driver.get(URL)
@@ -94,7 +96,11 @@ def get_race_url_by_year_and_mon(driver, year, month):
     wait.until(EC.presence_of_element_located((By.CLASS_NAME, 'race_table_01')))
 
     total_num_and_now_num = driver.find_element(By.XPATH, "//*[@id='contents_liquid']/div[1]/div[2]").text
-    total_num = int(re.search(r'(.*)件中', total_num_and_now_num).group().strip('件中'))
+    match = re.search(r'(.*)件中', total_num_and_now_num)
+    if match:
+        total_num = int(match.group(1).strip())
+    else:
+        raise ValueError(f"Could not extract total number from text: {total_num_and_now_num}")
 
     pre_url_num = 0
     if os.path.isfile(race_url_file):

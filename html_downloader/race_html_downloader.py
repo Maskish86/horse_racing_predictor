@@ -1,3 +1,4 @@
+from pathlib import Path
 import datetime
 from dotenv import load_dotenv
 import pytz
@@ -5,8 +6,9 @@ import requests
 import os
 
 now_datetime = datetime.datetime.now(pytz.timezone('Asia/Tokyo'))
-RACE_URL_DIR = 'race_url'
-RACE_HTML_DIR = 'race_html'
+RACE_URL_DIR = Path("data/race_url")
+RACE_HTML_DIR = Path('data/race_html')
+RACE_HTML_DIR.mkdir(exist_ok=True)
 
 load_dotenv()
 
@@ -84,7 +86,7 @@ def get_race_html_by_year_and_month(year, month, session):
     }
 
     # URLファイルを読む
-    url_file = os.path.join(RACE_URL_DIR, f"{year}-{month}.txt")
+    url_file = RACE_URL_DIR / f"{year}-{month}.txt"
     if not os.path.isfile(url_file):
         print(f"URL file not found: {url_file}")
         return
@@ -93,7 +95,7 @@ def get_race_html_by_year_and_month(year, month, session):
         urls = f.read().splitlines()
 
     # 保存ディレクトリ作成
-    save_dir = os.path.join(RACE_HTML_DIR, str(year), str(month))
+    save_dir = RACE_HTML_DIR / os.path.join(str(year), str(month))
     os.makedirs(save_dir, exist_ok=True)
 
     # 既に存在するrace_idセット
