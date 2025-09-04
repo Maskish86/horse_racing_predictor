@@ -5,6 +5,8 @@ numpy
 pandas
 scikit-learn
 matplotlib
+tqdm
+joblib
 
 # Deep Learning
 torch
@@ -22,3 +24,5 @@ pytz
 
 # Environment variable support
 python-dotenv
+
+

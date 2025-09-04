@@ -27,3 +27,17 @@ Thumbs.db
 
 # Ignore PyCharm settings
 .idea/
+
+.vscode/
+archive/
+
+
+# Data files
+*.txt
+*.html
+*.csv
+*.parquet
+*.h5
+*.npz
+*.ini
+.DS_Store
