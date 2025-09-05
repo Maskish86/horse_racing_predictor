@@ -5,6 +5,11 @@ import pytz
 import requests
 import os
 
+from utils.logger import setup_logger
+
+logger = setup_logger("race_url_scraper")
+now_datetime = datetime.datetime.now(pytz.timezone('Asia/Tokyo'))
+
 now_datetime = datetime.datetime.now(pytz.timezone('Asia/Tokyo'))
 RACE_URL_DIR = Path("data/race_url")
 RACE_HTML_DIR = Path('data/race_html')
@@ -15,7 +20,8 @@ load_dotenv()
 ID = os.getenv("NETKEIBA_ID")
 PASSWORD = os.getenv("NETKEIBA_PASSWORD")
 
-print("ID:", ID)
+if not ID or not PASSWORD:
+    logger.warning("NETKEIBA_ID or NETKEIBA_PASSWORD not set in .env")
 
 
 def get_race_html(start_year=2000, start_month=1):
@@ -38,8 +44,14 @@ def get_race_html(start_year=2000, start_month=1):
     }
 
     # ログイン
-    login_response = session.post(login_url, data=payload, headers=headers)
-    print("Login response:", login_response)
+    try:
+        login_response = session.post(login_url, data=payload, headers=headers)
+        login_response.raise_for_status()
+        logger.info(f"Login success: status={login_response.status_code}")
+    except Exception as e:
+        logger.error(f"Login failed: {e}")
+        return
+
 
     # 今月の最初の日
     first_day_of_month = now_datetime.replace(day=1)
@@ -70,7 +82,7 @@ def get_race_html(start_year=2000, start_month=1):
         for month in range(start_month, end_month):
             ranges.append((now_datetime.year, month))
     else:
-        raise ValueError("start_year cannot be in the future.")
+        logger.error("start_year cannot be in the future.")
 
     # HTML取得
     for year, month in ranges:
@@ -88,7 +100,7 @@ def get_race_html_by_year_and_month(year, month, session):
     # URLファイルを読む
     url_file = RACE_URL_DIR / f"{year}-{month}.txt"
     if not os.path.isfile(url_file):
-        print(f"URL file not found: {url_file}")
+        logger.info(f"URL file not found: {url_file}")
         return
 
     with open(url_file, 'r') as f:
@@ -109,28 +121,28 @@ def get_race_html_by_year_and_month(year, month, session):
             urls_to_download.append((url, race_id))
 
     if not urls_to_download:
-        print(f"already have {len(urls)} htmls ({year} {month})")
+        logger.info(f"[{year}-{month}] Already have {len(urls)} HTML files. Skipping.")
         return
 
-    print(f"getting {len(urls_to_download)} htmls ({year} {month})")
+    logger.info(f"[{year}-{month}] Downloading {len(urls_to_download)} new race HTMLs...")
 
     # HTMLをダウンロード
+    success_count = 0
     for url, race_id in urls_to_download:
         save_file_path = os.path.join(save_dir, f"{race_id}.html")
         try:
             response = session.get(url, headers=headers)
             response.raise_for_status()
             response.encoding = response.apparent_encoding
-            html = response.text
-
             with open(save_file_path, 'w', encoding='euc-jp', errors='replace') as file:
-                file.write(html)
+                file.write(response.text)
+            success_count += 1
         except Exception as e:
-            print(f"Error fetching {url}: {e}")
+            logger.error(f"Failed to fetch {url}: {e}")
 
-    print(f"saved {len(urls_to_download)} htmls ({year} {month})")
+    logger.info(f"[{year}-{month}] Saved {success_count}/{len(urls_to_download)} race HTMLs.")
 
 
 if __name__ == '__main__':
-    print('start get race html!')
+    logger.info("Start downloading race HTMLs...")
     get_race_html()

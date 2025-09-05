@@ -10,7 +10,11 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
 
+from utils.logger import setup_logger
+
+logger = setup_logger("race_url_scraper")
 now_datetime = datetime.datetime.now(pytz.timezone('Asia/Tokyo'))
+
 RACE_URL_DIR = Path("data/race_url")
 RACE_URL_DIR.mkdir(parents=True, exist_ok=True) 
 URL = 'https://db.netkeiba.com/?pid=race_search_detail'
@@ -59,7 +63,7 @@ def get_race_url(start_year=2000, start_month=1):
         return ranges
 
     for year, month in generate_year_month_ranges():
-        print(f'getting urls ({year} {month})')
+        logger.info(f"Getting race URLs for {year}-{month}")
         get_race_url_by_year_and_mon(driver, year, month)
 
 
@@ -109,26 +113,25 @@ def get_race_url_by_year_and_mon(driver, year, month):
 
     if total_num != pre_url_num:
         with open(race_url_file, mode='w') as f:
-            total = 0
+            total_written = 0
             while True:
                 wait.until(EC.presence_of_element_located((By.CLASS_NAME, 'race_table_01')))
-                all_rows = driver.find_element(By.CLASS_NAME, 'race_table_01').find_elements(By.TAG_NAME, 'tr')
-                total += len(all_rows) - 1
-                total += len(all_rows)-1
-                for row in range(1, len(all_rows)):
-                    race_href = all_rows[row].find_elements(By.TAG_NAME, 'td')[4]\
+                rows = driver.find_element(By.CLASS_NAME, 'race_table_01').find_elements(By.TAG_NAME, 'tr')
+                for row in range(1, len(rows)):
+                    race_href = rows[row].find_elements(By.TAG_NAME, 'td')[4]\
                         .find_element(By.TAG_NAME, 'a').get_attribute('href')
                     f.write(race_href+'\n')
+                    total_written += 1
                 try:
                     target = driver.find_elements(By.LINK_TEXT, '次')[0]
                     driver.execute_script('arguments[0].click();', target)  # javascriptでクリック処理
                 except IndexError:
                     break
-        print(f'got {total} urls of {total_num} ({year} {month})')
+        logger.info(f"Saved {total_written} race URLs for {year}-{month}")
     else:
-        print(f'already have {pre_url_num} urls ({year} {month})')
+        logger.info(f"Already have {pre_url_num} race URLs for {year}-{month}, skipping")
 
 
 if __name__ == '__main__':
-    print('start get race url!')
+    logger.info("Start scraping race URLs...")
     get_race_url(start_year=2025, start_month=1)

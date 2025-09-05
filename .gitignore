@@ -27,9 +27,8 @@ Thumbs.db
 
 # Ignore PyCharm settings
 .idea/
-
-.vscode/
 archive/
+colab_ipynb/
 
 
 # Data files

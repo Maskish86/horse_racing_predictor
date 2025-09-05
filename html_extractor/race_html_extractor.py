@@ -5,7 +5,11 @@ from bs4 import BeautifulSoup, Tag
 import pandas as pd
 import os
 from typing import Tuple, Dict, List, Any, cast
-from os import path
+from metadata.columns import race_data_columns, horse_data_columns
+
+from utils.logger import setup_logger
+logger = setup_logger("race_html_extractor")
+
 
 # 現在日時（タイムゾーン: 日本）
 now_datetime = datetime.datetime.now(pytz.timezone('Asia/Tokyo'))
@@ -14,66 +18,6 @@ RACE_URL_DIR = Path('data/race_url')     # レースURLを保存するディレ�
 RACE_HTML_DIR = Path('data/race_html')   # レースHTMLを保存するディレクトリ
 PARQUET_DIR = Path('data/yearly_parquet')        # 出力CSVの保存先ディレクトリ
 PARQUET_DIR.mkdir(exist_ok=True)
-
-# レースデータのcolumns
-race_data_columns = [
-    'race_id',
-    'race_round',
-    'race_grade',
-    'race_course',
-    'weather',
-    'track_condition',
-    'time',
-    'date',
-    'location',
-    'race_class',
-    'total_horse_number',
-    'frame_number_first',
-    'horse_number_first',
-    'frame_number_second',
-    'horse_number_second',
-    'frame_number_third',
-    'horse_number_third',
-    'win',
-    'show_1',
-    'show_2',
-    'show_3',
-    'bracket_quinella',
-    'quinella',
-    'quinella_place_1_2',
-    'quinella_place_1_3',
-    'quinella_place_2_3',
-    'exacta',
-    'trio',
-    'trifecta',
-    'ground_index',
-    'lap_time',
-    'pace_time'
-]
-
-# 競走馬データのcolumns
-horse_data_columns = [
-    'race_id',
-    'rank',
-    'frame_number',
-    'horse_number',
-    'horse_id',
-    'sex_and_age',
-    'burden_weight',
-    'rider_id',
-    'goal_time',
-    'margin',
-    'speed_index',
-    'rank_path',
-    'time_for_3_furlongs',
-    'win_odds',
-    'popular',
-    'horse_weight',
-    'remark',
-    'affiliation',
-    'tamer_id',
-    'owner_id'
-]
 
 
 # 複数年分まとめて処理する関数
@@ -88,23 +32,28 @@ def extract_and_save_race_data_by_year(year):
     horse_data_path = PARQUET_DIR / f'horse_{year}.csv'
     race_data_dicts = []
     horse_data_dicts = []
-    print(f'Making ({year}) Parquet files...')
+    logger.info(f"Extracting race data for {year}")
     total = 0
     # 各月のHTMLを読み込む
     for month in range(1, 13):
         html_dir = os.path.join(RACE_HTML_DIR, str(year), str(month))
-        if os.path.isdir(html_dir):
-            file_list = os.listdir(html_dir)
-            total += len(file_list)
-            print(f'len of {len(file_list)} (year: {year}, month: {month})')
-            # 各HTMLを処理
-            for file_name in file_list:
-                with open(os.path.join(html_dir, file_name), 'r', encoding='euc-jp', errors='replace') as f:
+        if not os.path.isdir(html_dir):
+            logger.warning(f"Missing directory: {html_dir}")
+            continue
+        file_list = os.listdir(html_dir)
+        total += len(file_list)
+        logger.info(f"{len(file_list)} HTML files found for {year}-{month:02d}")
+        # 各HTMLを処理
+        for file_path in file_list:
+            try:
+                with open(file_path, 'r', encoding='euc-jp', errors='replace') as f:
                     html = f.read()
-                    race_id = file_name.split('.')[-2]
-                    race_dict, horse_dicts = get_race_and_horse_data_by_html(race_id, html)
-                    race_data_dicts.append(race_dict)
-                    horse_data_dicts.extend(horse_dicts)
+                race_id = file_path.split('.')[0]
+                race_dict, horse_dicts = get_race_and_horse_data_by_html(race_id, html)
+                race_data_dicts.append(race_dict)
+                horse_data_dicts.extend(horse_dicts)
+            except Exception as e:
+                logger.error(f"Error processing file {file_path}: {e}")
     # DataFrameに変換
     race_df = pd.DataFrame(race_data_dicts)
     horse_df = pd.DataFrame(horse_data_dicts)
@@ -113,15 +62,15 @@ def extract_and_save_race_data_by_year(year):
     for col in race_df.columns:
         matches = race_df[race_df[col].astype(str).str.contains('\xa0', na=False)]
         if not matches.empty:
-            print(f'Column: {col}')
-            print(matches[[col]])
+            logger.warning(f"Column contains \\xa0: {col}")
 
     # Parquetを保存
     race_df.to_parquet(race_data_path, index=False)
     horse_df.to_parquet(horse_data_path, index=False)
-    print(f'Race data :\t{race_df.shape}')
-    print(f'Horse data :\t{horse_df.shape}')
-    print(f'Total {total} HTML files processed for year {year}.\n')
+
+    logger.info(f"Race data saved: {race_data_path} ({race_df.shape})")
+    logger.info(f"Horse data saved: {horse_data_path} ({horse_df.shape})")
+    logger.info(f"Total HTML files processed: {total}")
     
 
 # HTMLからレース情報と競走馬情報を抽出する関数
@@ -145,55 +94,63 @@ def get_race_and_horse_data_by_html(race_id: str, html: str) -> Tuple[Dict, List
     horse_data: List[Dict] = []
 
     # -------------------- レース情報 --------------------
-    data_intro = soup.find('div', class_='data_intro')
-    data_intro_tag = cast(Tag, data_intro)
-    if data_intro is None:
-        print(f"[Warning] Skipping race_id={race_id}: data_intro not found")
-        return race_data, horse_data
+    try:
+        data_intro = soup.find('div', class_='data_intro')
+        data_intro_tag = cast(Tag, data_intro)
+        if data_intro is None:
+            logger.warning(f"[{race_id}] Missing data_intro block")
+            return race_data, horse_data
 
-    race_data['race_round'] = safe_find_text(data_intro_tag, 'dt')
-    race_data['race_grade'] = safe_find_text(data_intro_tag, 'h1')
+        race_data['race_round'] = safe_find_text(data_intro_tag, 'dt')
+        race_data['race_grade'] = safe_find_text(data_intro_tag, 'h1')
 
-    p_tags = data_intro_tag.find_all('p')
-    if len(p_tags) >= 1:
-        parts = p_tags[0].get_text(strip=True).split('\xa0/\xa0')
-        race_data['race_course'] = parts[0] if len(parts) > 0 else 'N/A'
-        race_data['weather'] = parts[1] if len(parts) > 1 else 'N/A'
-        race_data['track_condition'] = parts[2].replace('\xa0', '') if len(parts) > 2 else 'N/A'
-        race_data['time'] = parts[3] if len(parts) > 3 else 'N/A'
-    else:
-        race_data.update(dict.fromkeys(['race_course', 'weather', 'track_condition', 'time'], 'N/A'))
+        p_tags = data_intro_tag.find_all('p')
+        if len(p_tags) >= 1:
+            parts = p_tags[0].get_text(strip=True).split('\xa0/\xa0')
+            race_data['race_course'] = parts[0] if len(parts) > 0 else 'N/A'
+            race_data['weather'] = parts[1] if len(parts) > 1 else 'N/A'
+            race_data['track_condition'] = parts[2].replace('\xa0', '') if len(parts) > 2 else 'N/A'
+            race_data['time'] = parts[3] if len(parts) > 3 else 'N/A'
+        else:
+            race_data.update(dict.fromkeys(['race_course', 'weather', 'track_condition', 'time'], 'N/A'))
 
-    if len(p_tags) >= 2:
-        smalltxt = p_tags[1].get_text(strip=True).split(' ')
-        race_data['date'] = smalltxt[0] if len(smalltxt) > 0 else 'N/A'
-        race_data['location'] = smalltxt[1] if len(smalltxt) > 1 else 'N/A'
-        race_data['race_class'] = smalltxt[2].replace('\xa0', '') if len(smalltxt) > 2 else 'N/A'
-    else:
-        race_data.update(dict.fromkeys(['date', 'location', 'race_class'], 'N/A'))
+        if len(p_tags) >= 2:
+            smalltxt = p_tags[1].get_text(strip=True).split(' ')
+            race_data['date'] = smalltxt[0] if len(smalltxt) > 0 else 'N/A'
+            race_data['location'] = smalltxt[1] if len(smalltxt) > 1 else 'N/A'
+            race_data['race_class'] = smalltxt[2].replace('\xa0', '') if len(smalltxt) > 2 else 'N/A'
+        else:
+            race_data.update(dict.fromkeys(['date', 'location', 'race_class'], 'N/A'))
+    except Exception as e:
+        logger.error(f"[{race_id}] Failed to extract race header: {e}")
 
     # -------------------- 結果テーブル --------------------
-    result_table = soup.find('table', class_='race_table_01 nk_tb_common')
-    result_rows = cast(Tag, result_table).find_all('tr') if result_table else []
+    try:
+        result_table = soup.find('table', class_='race_table_01 nk_tb_common')
+        result_rows = cast(Tag, result_table).find_all('tr') if result_table else []
 
-    race_data['total_horse_number'] = len(result_rows) - 1
+        race_data['total_horse_number'] = len(result_rows) - 1
 
-    for i in range(1, 4):
-        try:
-            row = cast(Tag, result_rows[i]).find_all('td')
-            race_data[f'frame_number_{"first" if i==1 else "second" if i==2 else "third"}'] = row[1].get_text()
-            race_data[f'horse_number_{"first" if i==1 else "second" if i==2 else "third"}'] = row[2].get_text()
-        except Exception:
-            race_data[f'frame_number_{"first" if i==1 else "second" if i==2 else "third"}'] = '0'
-            race_data[f'horse_number_{"first" if i==1 else "second" if i==2 else "third"}'] = '0'
+        for i in range(1, 4):
+            try:
+                row = cast(Tag, result_rows[i]).find_all('td')
+                race_data[f'frame_number_{"first" if i==1 else "second" if i==2 else "third"}'] = row[1].get_text()
+                race_data[f'horse_number_{"first" if i==1 else "second" if i==2 else "third"}'] = row[2].get_text()
+            except Exception:
+                race_data[f'frame_number_{"first" if i==1 else "second" if i==2 else "third"}'] = '0'
+                race_data[f'horse_number_{"first" if i==1 else "second" if i==2 else "third"}'] = '0'
+    except Exception as e:
+        logger.warning(f"[{race_id}] Error extracting result table: {e}")
 
     # -------------------- 払戻金 --------------------
-    pay_tables = soup.find_all('table', class_='pay_table_01')
-    race_data['win'] = race_data['show_1'] = race_data['show_2'] = race_data['show_3'] = '0'
-    race_data['bracket_quinella'] = race_data['quinella'] = '0'
-    race_data['quinella_place_1_2'] = race_data['quinella_place_1_3'] = race_data['quinella_place_2_3'] = '0'
-    race_data['exacta'] = race_data['trio'] = race_data['trifecta'] = '0'
-
+    try:
+        pay_tables = soup.find_all('table', class_='pay_table_01')
+        race_data['win'] = race_data['show_1'] = race_data['show_2'] = race_data['show_3'] = '0'
+        race_data['bracket_quinella'] = race_data['quinella'] = '0'
+        race_data['quinella_place_1_2'] = race_data['quinella_place_1_3'] = race_data['quinella_place_2_3'] = '0'
+        race_data['exacta'] = race_data['trio'] = race_data['trifecta'] = '0'
+    except Exception as e:
+        logger.warning(f"[{race_id}] Failed extracting additional race fields: {e}")
 
 
     try:
@@ -252,9 +209,8 @@ def get_race_and_horse_data_by_html(race_id: str, html: str) -> Tuple[Dict, List
             td_trifecta = row3.find('td', class_='txt_r') if row3 else None
             race_data['trifecta'] = safe_get_text(as_tag(td_trifecta))
 
-
     except Exception as e:
-        print(f"[Warning] Pay table parse failed for {race_id}: {e}")
+        logger.warning(f"Pay table parse failed for {race_id}: {e}")
 
     # -------------------- 馬場指数・ラップ --------------------
     result_table_02 = soup.find_all('table', class_='result_table_02')
@@ -267,7 +223,7 @@ def get_race_and_horse_data_by_html(race_id: str, html: str) -> Tuple[Dict, List
         text = td0.get_text(strip=True).split('(')[0] if td0 else '0'
         race_data['ground_index'] = text
     except Exception as e:
-        print(f"[Warning] ground_index parse failed: {e}")
+        logger.warning(f"ground_index parse failed: {e}")
         race_data['ground_index'] = '0'
 
     try:
@@ -281,7 +237,7 @@ def get_race_and_horse_data_by_html(race_id: str, html: str) -> Tuple[Dict, List
         race_data['lap_time'] = td_lap.get_text(strip=True) if td_lap else '0'
         race_data['pace_time'] = td_pace.get_text(strip=True) if td_pace else '0'
     except Exception as e:
-        print(f"[Warning] lap/pace parse failed: {e}")
+        logger.warning(f"lap/pace parse failed: {e}")
         race_data['lap_time'] = race_data['pace_time'] = '0'
 
     # -------------------- 馬情報 --------------------
@@ -321,7 +277,7 @@ def get_race_and_horse_data_by_html(race_id: str, html: str) -> Tuple[Dict, List
                 'margin': tds[8].get_text(strip=True),
                 'speed_index': tds[9].get_text(strip=True),
                 'rank_path': tds[10].get_text(strip=True),
-                'time_for_3_furlongs': tds[11].get_text(strip=True),
+                'last3f_time': tds[11].get_text(strip=True),
                 'win_odds': tds[12].get_text(strip=True),
                 'popular': tds[13].get_text(strip=True),
                 'horse_weight': tds[14].get_text(strip=True),
@@ -333,7 +289,7 @@ def get_race_and_horse_data_by_html(race_id: str, html: str) -> Tuple[Dict, List
             horse_data.append(horse)
 
         except Exception as e:
-            print(f"[Warning] Error parsing horse row in race_id={race_id}: {e}")
+            logger.warning(f"Error parsing horse row in race_id={race_id}: {e}")
             continue
 
     return race_data, horse_data
@@ -342,5 +298,5 @@ def get_race_and_horse_data_by_html(race_id: str, html: str) -> Tuple[Dict, List
 
 # メイン処理
 if __name__ == '__main__':
-    print('Extracting data from HTML and saving to Parquet files...')
+    logger.info('Extracting data from HTML and saving to Parquet files...')
     extract_and_save_race_data()
