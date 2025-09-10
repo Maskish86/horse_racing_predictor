@@ -24,7 +24,7 @@ if not ID or not PASSWORD:
     logger.warning("NETKEIBA_ID or NETKEIBA_PASSWORD not set in .env")
 
 
-def get_race_html(start_year=2000, start_month=1):
+def get_race_html(start_year=2001, start_month=1):
     # セッション開始
     session = requests.Session()
 

@@ -21,7 +21,7 @@ URL = 'https://db.netkeiba.com/?pid=race_search_detail'
 WAIT_SECOND = 5
 
 
-def get_race_url(start_year=2000, start_month=1):
+def get_race_url(start_year=2001, start_month=1):
     options = Options()
     options.add_argument('--headless')
     driver = webdriver.Chrome(options=options)
@@ -134,4 +134,4 @@ def get_race_url_by_year_and_mon(driver, year, month):
 
 if __name__ == '__main__':
     logger.info("Start scraping race URLs...")
-    get_race_url(start_year=2025, start_month=1)
+    get_race_url()

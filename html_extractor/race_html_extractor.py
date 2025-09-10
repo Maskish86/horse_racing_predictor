@@ -21,7 +21,7 @@ PARQUET_DIR.mkdir(exist_ok=True)
 
 
 # 複数年分まとめて処理する関数
-def extract_and_save_race_data(start_year=2000):
+def extract_and_save_race_data(start_year=2001):
     for year in range(start_year, now_datetime.year + 1):
         extract_and_save_race_data_by_year(year)
 
@@ -93,7 +93,7 @@ def get_race_and_horse_data_by_html(race_id: str, html: str) -> Tuple[Dict, List
     race_data: Dict = {'race_id': race_id}
     horse_data: List[Dict] = []
 
-    # -------------------- レース情報 --------------------
+    # レース情報 
     try:
         data_intro = soup.find('div', class_='data_intro')
         data_intro_tag = cast(Tag, data_intro)
@@ -124,7 +124,7 @@ def get_race_and_horse_data_by_html(race_id: str, html: str) -> Tuple[Dict, List
     except Exception as e:
         logger.error(f"[{race_id}] Failed to extract race header: {e}")
 
-    # -------------------- 結果テーブル --------------------
+    # 結果表
     try:
         result_table = soup.find('table', class_='race_table_01 nk_tb_common')
         result_rows = cast(Tag, result_table).find_all('tr') if result_table else []
@@ -142,7 +142,7 @@ def get_race_and_horse_data_by_html(race_id: str, html: str) -> Tuple[Dict, List
     except Exception as e:
         logger.warning(f"[{race_id}] Error extracting result table: {e}")
 
-    # -------------------- 払戻金 --------------------
+    # 払戻金 
     try:
         pay_tables = soup.find_all('table', class_='pay_table_01')
         race_data['win'] = race_data['show_1'] = race_data['show_2'] = race_data['show_3'] = '0'
@@ -154,7 +154,7 @@ def get_race_and_horse_data_by_html(race_id: str, html: str) -> Tuple[Dict, List
 
 
     try:
-        # -------------------- 払戻金1 (単勝・複勝など) --------------------
+        # 払戻金1 (単勝・複勝など) 
         if len(pay_tables) >= 1:
             table1 = cast(Tag, pay_tables[0])
             rows1 = table1.find_all('tr')
@@ -182,7 +182,7 @@ def get_race_and_horse_data_by_html(race_id: str, html: str) -> Tuple[Dict, List
             td_quinella = row3.find('td', class_='txt_r') if row3 else None
             race_data['quinella'] = safe_get_text(as_tag(td_quinella))
 
-        # -------------------- 払戻金2 (馬連・三連複など) --------------------
+        # 払戻金2 (馬連・三連複など)
         if len(pay_tables) >= 2:
             table2 = as_tag(pay_tables[1])
             rows2 = table2.find_all('tr') if table2 else []
@@ -212,7 +212,7 @@ def get_race_and_horse_data_by_html(race_id: str, html: str) -> Tuple[Dict, List
     except Exception as e:
         logger.warning(f"Pay table parse failed for {race_id}: {e}")
 
-    # -------------------- 馬場指数・ラップ --------------------
+    # 馬場指数・ラップ 
     result_table_02 = soup.find_all('table', class_='result_table_02')
     table0 = as_tag(result_table_02[0]) if len(result_table_02) > 0 else None
     table2 = as_tag(result_table_02[2]) if len(result_table_02) > 2 else None
@@ -240,7 +240,7 @@ def get_race_and_horse_data_by_html(race_id: str, html: str) -> Tuple[Dict, List
         logger.warning(f"lap/pace parse failed: {e}")
         race_data['lap_time'] = race_data['pace_time'] = '0'
 
-    # -------------------- 馬情報 --------------------
+    # 馬のデータ
     for tr in result_rows[1:]:
         tr_tag = as_tag(tr)
         tds = tr_tag.find_all('td') if tr_tag else []

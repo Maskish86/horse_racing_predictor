@@ -29,12 +29,11 @@ Thumbs.db
 .idea/
 archive/
 colab_ipynb/
-
+data/
 
 # Data files
 *.txt
 *.html
-*.csv
 *.parquet
 *.h5
 *.npz
