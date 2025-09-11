@@ -9,8 +9,9 @@ from metadata.columns import horse_feature_columns
 from utils.logger import setup_logger
 logger = setup_logger('horse_feature_builder')
 
-PARQUET_DIR = Path('data/yearly_parquet')
+YEARLY_HORSE_DIR = Path ('data/yearly_parquet/horse')
 SAVE_DIR = Path('data/prcessed_parquet')
+SAVE_DIR.mkdir(exist_ok=True)
 PREDICT_FEATURE_DIR = Path('data/predict_features')
 PREDICT_FEATURE_DIR.mkdir(exist_ok=True)
 CSV_DIR = Path('data/csv')
@@ -28,10 +29,8 @@ def process_horse_data():
     finalize_and_save(horse_df)
     
 
-
-
 def load_and_merge_data():
-    horse_files = list(PARQUET_DIR.glob('horse_*.parquet'))
+    horse_files = list(YEARLY_HORSE_DIR.glob('horse_*.parquet'))
     horse_df = pd.concat([pd.read_parquet(f) for f in horse_files], axis=0)
     cols_for_merge = ['race_id','location', 'ground_type', 'distance', 'is_outer_course', 'race_class_level', 'datetime', 'total_horse_number', 'field_size_bin', 'corners_num','norm_tough_gi', 'time_decay_weight', 'high_pace_proba_log', 'race_age']
     race_df_for_merge = pd.read_parquet(SAVE_DIR / 'race_features.parquet')[cols_for_merge]
@@ -54,6 +53,7 @@ def add_basic_features(horse_df):
     horse_df = horse_df.dropna(subset=['datetime'])  
     horse_df['race_year'] = horse_df['datetime'].dt.year.astype(int)  
 
+    # 順位に関する特徴量
     horse_df['total_horse_number'] = horse_df['total_horse_number'].fillna(18)
     horse_df['rank'] = horse_df['rank'].str.replace(r'\(?(降|再)\)?', '', regex=True)
     horse_df = horse_df[~horse_df['rank'].isin(['取', '除', '失', '中'])]
@@ -62,12 +62,14 @@ def add_basic_features(horse_df):
     horse_df['norm_rank'] = 1 - (horse_df['rank'] - 1) / (horse_df['total_horse_number'] - 1)
     horse_df['rank_cat'] =  pd.cut(horse_df['norm_rank'],   bins=list(np.linspace(0, 1, 19)), labels=False, include_lowest=True)
     
+    # スタート位置に関する特徴量
     horse_df['norm_horse_number'] = (horse_df['horse_number'] - 1) / (horse_df['total_horse_number'] - 1)
     horse_df['horse_number_cat'] = pd.cut(horse_df['norm_horse_number'],   bins=list(np.linspace(0, 1, 19)), labels=False, include_lowest=True)
     horse_df['is_inner'] = (horse_df['norm_horse_number'] <= 0.3).astype(int)
     horse_df['is_middle'] = ((horse_df['norm_horse_number'] > 0.3) & (horse_df['norm_horse_number'] <= 0.7)).astype(int)
     horse_df['is_outer'] = (horse_df['norm_horse_number'] > 0.7).astype(int)
 
+    # 性齢に関する特徴量
     def extract_and_replace(df, column, pattern, new_column, replace_value):
         extracted = df[column].str.extract(f'({pattern})', expand=False)
         df[new_column] = extracted.fillna(0).replace(pattern, replace_value)
@@ -81,6 +83,7 @@ def add_basic_features(horse_df):
     horse_df['age_cat'] = pd.cut(horse_df['age'], bins=[0, 2, 3, 4, 5, 6, 7, np.inf], labels=[0, 1, 2, 3, 4, 5, 6],include_lowest=True, right=True).astype(int)
     horse_df.loc[horse_df['age'] > 3, 'race_age'] = 4
 
+    # 人気に関する特徴量
     horse_df['win_odds'] = horse_df['win_odds'].astype(float)
     horse_df['log_win_odds'] = -np.log1p(horse_df['win_odds'])
     implied_proba = 1 / (horse_df['win_odds'] + 1e-6)
@@ -89,6 +92,7 @@ def add_basic_features(horse_df):
     horse_df['norm_popularity'] = 1 - (horse_df['popular'] - 1) / (horse_df['total_horse_number'] - 1)
     horse_df['rank_vs_popular'] = (horse_df['norm_rank'] - horse_df['norm_popularity']) 
     
+    # 不利に関する特徴量
     remark_mapping = {'出遅れ': 'is_slow_break', '出脚鈍い': 'is_slow_break', '躓く': 'is_slow_break', 'アオル': 'is_slow_break',
                       'S不利': 'is_trouble', 'S接触':'is_trouble', 'Sヨレル': 'is_trouble', '直線不利': 'is_trouble'}
     for key, value in remark_mapping.items():
@@ -104,7 +108,7 @@ def add_basic_features(horse_df):
           .transform(lambda x: x.shift(1).rolling(5, min_periods=1).sum()) / 5
     ).fillna(0)
 
-
+    # 馬体重に関する特徴量
     horse_df['horse_weight'] = horse_df['horse_weight'].str.replace(r'\(([-|+]?\d*)\)', '', regex=True)\
         .replace('計不', np.nan).astype(float)
     horse_weight_rolling = horse_df.sort_values('datetime').groupby('horse_id')['horse_weight']
@@ -118,6 +122,7 @@ def add_basic_features(horse_df):
         .transform(lambda x: x.shift(1).rolling(5, min_periods=1).mean())
     horse_df['burden_weight_diff_mean5'] = (horse_df['burden_weight'] - burden_weight_mean5).fillna(0) 
     
+    # 厩舎に関する特徴量
     affiliation_mapping = {'西': 'is_Ritto', '東':'is_Miho', '地': 'is_local_or_foreign', '外': 'is_local_or_foreign'}
     for key, value in affiliation_mapping.items():
         horse_df.loc[horse_df['affiliation'].str.contains(key, na=False), value] = 1
@@ -158,11 +163,11 @@ def add_basic_features(horse_df):
 
 
 def compute_time_causal_group_stats(df, value_col, group_cols):
+    # 時間に関する特徴量のグループごとの平均と標準偏差を計算
     df = df.copy()
     grouped = df.groupby(group_cols + ['race_year'])[value_col].agg(['mean', 'std', 'count']).reset_index()
     grouped = grouped.rename(columns={'mean': f'{value_col}_mean', 'std': f'{value_col}_std', 'count': 'count'})
 
-    # Now expand to all previous years for each group
     result_df = []
     for year in sorted(df['race_year'].unique()):
         df_this_year = df[df['race_year'] == year]
@@ -462,13 +467,14 @@ def add_kde_features(horse_df):
     for col in kde_cols:
         grouped = horse_df.groupby('race_id')
         mean = grouped[col].transform('mean')
-        std = grouped[col].transform('std') + 1e-3  # Avoid zero division
+        std = grouped[col].transform('std') + 1e-3  
         horse_df[col] = horse_df[col].fillna(mean)
         horse_df[col] = ((horse_df[col] - mean) / std).clip(-3, 3)
         horse_df[col] = horse_df[col].fillna(0.0)
     return horse_df
 
 def train_and_predict_kde(horse_df, feature_col, group_cols, save_model=True, min_samples=10, decay_weight=0.95):
+    # KDEモデルの訓練と予測
     result_rows = []
     horse_df = horse_df.copy()
     prefix = feature_col.replace('norm_', '')

@@ -16,9 +16,10 @@ now_datetime = datetime.datetime.now(pytz.timezone('Asia/Tokyo'))
 
 RACE_URL_DIR = Path('data/race_url')     # レースURLを保存するディレクトリ
 RACE_HTML_DIR = Path('data/race_html')   # レースHTMLを保存するディレクトリ
-PARQUET_DIR = Path('data/yearly_parquet')        # 出力CSVの保存先ディレクトリ
-PARQUET_DIR.mkdir(exist_ok=True)
-
+YEARLY_RACE_DIR = Path ('data/yearly_parquet/race')
+YEARLY_RACE_DIR.mkdir(parents=True, exist_ok=True)
+YEARLY_HORSE_DIR = Path ('data/yearly_parquet/horse')
+YEARLY_HORSE_DIR.mkdir(exist_ok=True)
 
 # 複数年分まとめて処理する関数
 def extract_and_save_race_data(start_year=2001):
@@ -28,8 +29,8 @@ def extract_and_save_race_data(start_year=2001):
 
 # 1年分のHTMLを処理してParquetを生成する関数
 def extract_and_save_race_data_by_year(year):
-    race_data_path = PARQUET_DIR / f'race_{year}.csv'
-    horse_data_path = PARQUET_DIR / f'horse_{year}.csv'
+    race_data_path = YEARLY_RACE_DIR / f'race_{year}.csv'
+    horse_data_path = YEARLY_HORSE_DIR / f'horse_{year}.csv'
     race_data_dicts = []
     horse_data_dicts = []
     logger.info(f"Extracting race data for {year}")

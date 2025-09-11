@@ -22,12 +22,23 @@ WAIT_SECOND = 5
 
 
 def get_race_url(start_year=2001, start_month=1):
+    logger.info("Start scraping race URLs...")
     options = Options()
     options.add_argument('--headless')
     driver = webdriver.Chrome(options=options)
     driver.implicitly_wait(10)
+    logger.info("WebDriver started.")
 
-    def generate_year_month_ranges():
+    for year, month in generate_year_month_ranges(start_year, start_month):
+        logger.info(f"Getting race URLs for {year}-{month}")
+        get_race_url_by_year_and_mon(driver, year, month)
+
+
+    driver.close()
+    driver.quit()
+
+
+def generate_year_month_ranges(start_year, start_month):
         ranges = []
 
         # 今月の最初の日
@@ -58,17 +69,9 @@ def get_race_url(start_year=2001, start_month=1):
             for month in range(start_month, end_month):
                 ranges.append((now_datetime.year, month))
         else:
-            raise ValueError("start_year cannot be in the future.")
+            logger.error("start_year cannot be in the future.")
 
         return ranges
-
-    for year, month in generate_year_month_ranges():
-        logger.info(f"Getting race URLs for {year}-{month}")
-        get_race_url_by_year_and_mon(driver, year, month)
-
-
-    driver.close()
-    driver.quit()
 
 
 def get_race_url_by_year_and_mon(driver, year, month):
@@ -104,7 +107,7 @@ def get_race_url_by_year_and_mon(driver, year, month):
     if match:
         total_num = int(match.group(1).strip())
     else:
-        raise ValueError(f"Could not extract total number from text: {total_num_and_now_num}")
+        logger.error(f"Could not extract total number from text: {total_num_and_now_num}")
 
     pre_url_num = 0
     if os.path.isfile(race_url_file):
@@ -133,5 +136,4 @@ def get_race_url_by_year_and_mon(driver, year, month):
 
 
 if __name__ == '__main__':
-    logger.info("Start scraping race URLs...")
     get_race_url()

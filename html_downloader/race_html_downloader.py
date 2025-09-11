@@ -25,6 +25,7 @@ if not ID or not PASSWORD:
 
 
 def get_race_html(start_year=2001, start_month=1):
+    logger.info("Start downloading race HTMLs...")
     # セッション開始
     session = requests.Session()
 
@@ -144,5 +145,4 @@ def get_race_html_by_year_and_month(year, month, session):
 
 
 if __name__ == '__main__':
-    logger.info("Start downloading race HTMLs...")
     get_race_html()

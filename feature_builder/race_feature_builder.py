@@ -9,14 +9,14 @@ from metadata.columns import race_feature_columns
 from utils.logger import setup_logger
 logger = setup_logger('race_feature_builder')
 
-PARQUET_DIR = Path('data/yearly_parquet')
+YEARLY_RACE_DIR = Path ('data/yearly_parquet/race')
 SAVE_DIR = Path('data/prcessed_parquet')
 SAVE_DIR.mkdir(exist_ok=True)
 CSV_DIR = Path('data/csv')
 CSV_DIR.mkdir(exist_ok=True)
 
 def process_race_data():
-    logger.info("Starting race feature builder pipeline...")
+    logger.info('Starting race feature builder pipeline...')
     race_df = load_race_data()
     race_df = add_basic_features(race_df)
     race_df = add_course_features(race_df)
@@ -27,7 +27,7 @@ def process_race_data():
 def load_race_data():
     # レースデータの読み込みと前処理
     logger.info('Start loading')
-    race_files = list(PARQUET_DIR.glob('race_*.parquet'))
+    race_files = list(YEARLY_RACE_DIR.glob('race_*.parquet'))
     race_df = pd.concat([pd.read_parquet(f) for f in race_files], axis=0)
     
     race_df['race_id'] = race_df['race_id'].astype(str).str.extract(r'(\d{12})')[0]

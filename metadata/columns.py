@@ -59,7 +59,29 @@ horse_data_columns = [
 ]
 
 
+# 競走馬の調教データのcolumns
+training_data_columns = [
+    "horse_id",
+    "race_id",
+    "course_type",
+    "course_condition",
+    "lap_time_1",
+    "lap_time_2",
+    "lap_time_3",
+    "lap_time_4",
+    "lap_time_5",
+    "top_lap_time_1",
+    "top_lap_time_2",
+    "top_lap_time_3",
+    "top_lap_time_4",
+    "top_lap_time_5",
+    "position",
+    "running_style",
+    "evaluation_grade",
+]
 
+
+# レースの特徴量columns
 race_feature_columns = [
     'race_id',
     'race_round',
@@ -125,6 +147,7 @@ race_feature_columns = [
     'race_lap_early_vs_late_relative',
 ]
 
+# 競走馬の特徴量columns
 horse_feature_columns = [
     'race_id',
     'rank',
@@ -227,4 +250,49 @@ horse_feature_columns = [
     'field_size_bin',
     'corners_num',
     'norm_tough_gi',
+]
+
+
+# 調教データの特徴量columns
+training_feature_columns = [
+    "horse_id",
+    "race_id",
+    "course_type_wood",
+    "course_type_slope",
+    "course_type_poly",
+    "course_type_dirt",
+    "course_type_turf",
+    "course_cat",
+    "course_condition",
+    "evaluation_grade",
+    "position",
+    "top_lap_time_1",
+    "top_lap_time_2",
+    "top_lap_time_3",
+    "top_lap_time_4",
+    "top_lap_time_5",
+    "valid_tsec_count",
+    "tlap_time_3f",
+    "tlap_time_1f",
+    "tsec_time_mean",
+    "tsec_time_stdlog",
+    "tsec_early_vs_late",
+    "first_last_tsec_half_pct_diff",
+    "tsec_acceleration_mean",
+    "tsec_acceleration_stdlog",
+    "tlap_time_3f_zscore",
+    "tlap_time_1f_zscore",
+    "tsec_time_mean_zscore",
+    "tsec_time_stdlog_relative",
+    "tsec_early_vs_late_relative",
+    "tsec_past5_count",
+    "tlap_time_3f_zscore5",
+    "tlap_time_1f_zscore5",
+    "tsec_time_mean_zscore5",
+    "tsec_time_stdlog_relative5",
+    "tsec_early_vs_late_relative5",
+    "own_pace",
+    "full_effort",
+    "strong_effort",
+    "urged",
 ]
