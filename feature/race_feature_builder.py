@@ -4,7 +4,7 @@ import pandas as pd
 import re
 from datetime import datetime
 from metadata.course_map import turf_by_loc, turf_by_dist, dirt_by_loc, dirt_by_dist
-from metadata.columns import race_feature_columns
+from metadata.columns_feature import race_feature_columns
 
 from utils.logger import setup_logger
 logger = setup_logger('race_feature_builder')

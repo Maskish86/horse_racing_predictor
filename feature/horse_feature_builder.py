@@ -4,7 +4,7 @@ import pandas as pd
 from datetime import datetime 
 from sklearn.neighbors import KernelDensity
 from tqdm import tqdm
-from metadata.columns import horse_feature_columns
+from metadata.columns_feature import horse_feature_columns
 
 from utils.logger import setup_logger
 logger = setup_logger('horse_feature_builder')

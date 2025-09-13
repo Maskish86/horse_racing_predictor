@@ -5,7 +5,7 @@ from bs4 import BeautifulSoup, Tag
 import pandas as pd
 import os
 from typing import Tuple, Dict, List, Any, cast
-from metadata.columns import race_data_columns, horse_data_columns
+from metadata.columns_raw import race_data_columns, horse_data_columns
 
 from utils.logger import setup_logger
 logger = setup_logger("race_html_extractor")
