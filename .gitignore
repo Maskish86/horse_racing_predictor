@@ -39,3 +39,4 @@ data/
 *.npz
 *.ini
 .DS_Store
+race_html/
